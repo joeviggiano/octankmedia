@@ -8,6 +8,7 @@ import lambda = require('@aws-cdk/aws-lambda');
 import sns = require('@aws-cdk/aws-sns');
 import s3n = require('@aws-cdk/aws-s3-notifications');
 import ddb = require('@aws-cdk/aws-dynamodb');
+import events = require('@aws-cdk/aws-events');
 import { BucketEncryption, BlockPublicAccess } from '@aws-cdk/aws-s3';
 import * as vod720preset from '../presets/720p.json';
 import * as vod1080preset from '../presets/1080p.json';
@@ -16,17 +17,19 @@ import * as vod720job from '../jobtemplates/720p.json';
 import * as vod1080job from '../jobtemplates/1080p.json';
 import * as vod2160job from '../jobtemplates/2160p.json';
 import { CfnTable } from '@aws-cdk/aws-dynamodb';
+import { Aws } from '@aws-cdk/core';
 
 
 export class OctankStack extends cdk.Stack {
   constructor(scope: cdk.Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
-    
+    const stack_name = Aws.STACK_NAME;
+
     //Define S3 Buckets:
-    var appendBucket = Math.random().toString(36).substring(7);
+    var appendRand = Math.random().toString(36).substring(7);
     const logBucket = new s3.Bucket(this, 'Octank-logs', {
-      bucketName: 'octank-logs-' + appendBucket,
+      bucketName: 'octank-logs-' + appendRand,
       versioned: false,
       publicReadAccess: false,
       blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
@@ -34,7 +37,7 @@ export class OctankStack extends cdk.Stack {
     });
 
     const destBucket = new s3.Bucket(this, 'Octank-destination', {
-      bucketName: 'octank-destination-' + appendBucket,
+      bucketName: 'octank-destination-' + appendRand,
       versioned: false,
       publicReadAccess: false,
       blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
@@ -44,7 +47,7 @@ export class OctankStack extends cdk.Stack {
     });
 
     const sourceBucket = new s3.Bucket(this, 'Octank-source', {
-      bucketName: 'octank-source-' + appendBucket,
+      bucketName: 'octank-source-' + appendRand,
       versioned: false,
       publicReadAccess: false,
       blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
@@ -98,8 +101,34 @@ export class OctankStack extends cdk.Stack {
       settingsJson: vod2160job.Settings
     });
 
+    //MediaConvert IAM Roles
+    const mc_vod_role = new iam.Role(this, stack_name + '-mediapackagevod-policy', {
+      roleName: stack_name + '-mediapackagevod-policy',
+      assumedBy: new iam.ServicePrincipal('mediapackage.amazonaws.com')
+    });
+    mc_vod_role.addToPolicy(new iam.PolicyStatement({
+      actions: ['s3:GetObject', 's3:GetBucketLocation', 's3:GetBucketRequestPayment'],
+      resources: [destBucket.bucketArn, destBucket.bucketArn + '/*'],
+      sid: stack_name + '-mediapackagevod-policy',
+      effect: iam.Effect.ALLOW
+    }));
+
+    //MediaConvert Rules
+    const mcevent_complete = new events.CfnRule(this, 'Octank-EncodeComplete',{
+      name: 'Octank-EncodeComplete',
+      description: 'MediaConvert Completed event rule',
+      //TODO: Add Step Function Target - Line:325
+      eventPattern: '{ "source": [ "aws.mediaconvert" ], "detail": {"status": ["COMPLETE"]} }'
+    });
+
+    const mcevent_error = new events.CfnRule(this, 'Octank-EncodeComplete',{
+      name: 'Octank-EncodeComplete',
+      description: 'MediaConvert Completed event rule',
+      //TODO: Add Step Function Target - Line:345
+      eventPattern: '{ "source": [ "aws.mediaconvert" ], "detail": {"status": ["ERROR"]} }'
+    });
+
     //Time for DynamoDB!
-    //Have to use CfnTable otherwise we can't define attributes. Lame-O!
     const table = new ddb.CfnTable(this, 'Octank-Table', {
       tableName: 'Octank-Table',
       billingMode: ddb.BillingMode.PAY_PER_REQUEST,
