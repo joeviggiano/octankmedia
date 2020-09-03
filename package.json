@@ -21,6 +21,7 @@
     "typescript": "~3.9.7"
   },
   "dependencies": {
+    "@aws-cdk/aws-dynamodb": "^1.61.1",
     "@aws-cdk/aws-mediaconvert": "^1.61.1",
     "@aws-cdk/aws-s3": "^1.61.1",
     "@aws-cdk/aws-s3-notifications": "^1.61.1",
