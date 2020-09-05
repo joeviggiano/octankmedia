@@ -17,14 +17,18 @@ import * as vod720job from '../jobtemplates/720p.json';
 import * as vod1080job from '../jobtemplates/1080p.json';
 import * as vod2160job from '../jobtemplates/2160p.json';
 import { CfnTable } from '@aws-cdk/aws-dynamodb';
-import { Aws } from '@aws-cdk/core';
+import { Aws, Duration } from '@aws-cdk/core';
 
 
 export class OctankStack extends cdk.Stack {
   constructor(scope: cdk.Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
+    //Things we'll need later on...
     const stack_name = Aws.STACK_NAME;
+    const codeBucket = s3.Bucket.fromBucketAttributes(this, 'octank-cdk-files', {
+      bucketArn: 'arn:aws:s3:::octank-cdk-files'
+    });
 
     //Define S3 Buckets:
     var appendRand = Math.random().toString(36).substring(7);
@@ -102,19 +106,72 @@ export class OctankStack extends cdk.Stack {
     });
 
     //MediaConvert IAM Roles
-    const mc_vod_role = new iam.Role(this, stack_name + '-mediapackagevod-policy', {
-      roleName: stack_name + '-mediapackagevod-policy',
-      assumedBy: new iam.ServicePrincipal('mediapackage.amazonaws.com')
+    /*const mc_vod_role = new iam.Role(this, 'Octank-mediapackagevod-policy', {
+      roleName: 'Octank-mediapackagevod-policy',
+      assumedBy: new iam.ServicePrincipal('mediapackage.amazonaws.com'),
     });
     mc_vod_role.addToPolicy(new iam.PolicyStatement({
       actions: ['s3:GetObject', 's3:GetBucketLocation', 's3:GetBucketRequestPayment'],
       resources: [destBucket.bucketArn, destBucket.bucketArn + '/*'],
-      sid: stack_name + '-mediapackagevod-policy',
+      sid: '1',
       effect: iam.Effect.ALLOW
-    }));
+    }));*/
+
+    //Lambda
+    const mc_lambda_sfn = new lambda.Function(this, 'Octank-step-functions', {
+      functionName: stack_name + '-step-functions',
+      description: 'Creates a unique identifer (GUID) and executes the Ingest StateMachine',
+      handler: 'index.handler',
+      runtime: lambda.Runtime.NODEJS_12_X,
+      code: lambda.Code.fromBucket(codeBucket, 'step-functions.zip'),
+      timeout: Duration.seconds(120),
+      environment: {
+        //TODO: Add ARN's for State Machines here
+        AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1',
+        IngestWorkflow: '',
+        ProcessWorkflow: '',
+        PublishWorkflow: '',
+        ErrorHandler: ''
+      }
+    });
+
+    const mc_lambda_input = new lambda.Function(this, 'Octank-input-validate', {
+      functionName: stack_name + '-input-validate',
+      description: 'Validates the input given to the workflow',
+      handler: 'index.handler',
+      runtime: lambda.Runtime.NODEJS_12_X,
+      code: lambda.Code.fromBucket(codeBucket, 'input-validate.zip'),
+      timeout: Duration.seconds(120),
+      environment: {
+        AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1',
+        WorkflowName: stack_name,
+        Source: sourceBucket.bucketName,
+        Destination: destBucket.bucketName,
+        MediaConvert_Template_720p: 'Octank_Ott_720p_Avc_Aac_16x9_qvbr',
+        MediaConvert_Template_1080p: 'Octank_Ott_1080p_Avc_Aac_16x9_qvbr',
+        MediaConvert_Template_2160p: 'Octank_Ott_2160p_Avc_Aac_16x9_qvbr',
+        EnableMediaPackage: 'false',
+        EnableSns: 'true',
+        EnableSqs: 'true',
+        AcceleratedTranscoding: 'PREFERRED',
+        ArchiveSource: 'DISABLED',
+        InputRotate: 'DEGREE_0',
+        IngestWorkflow: '',
+        ProcessWorkflow: '',
+        PublishWorkflow: '',
+        ErrorHandler: ''
+      }
+    });
+    
+    //Step Functions, where the magic happens
+    /*const mc_ingest_step = new sfn.StateMachine(this, stack_name + '-ingest', {
+      stateMachineName: stack_name + '-ingest',
+
+    });*/
+
 
     //MediaConvert Rules
-    const mcevent_complete = new events.CfnRule(this, 'Octank-EncodeComplete',{
+    /*const mcevent_complete = new events.CfnRule(this, 'Octank-EncodeComplete',{
       name: 'Octank-EncodeComplete',
       description: 'MediaConvert Completed event rule',
       //TODO: Add Step Function Target - Line:325
@@ -126,7 +183,7 @@ export class OctankStack extends cdk.Stack {
       description: 'MediaConvert Completed event rule',
       //TODO: Add Step Function Target - Line:345
       eventPattern: '{ "source": [ "aws.mediaconvert" ], "detail": {"status": ["ERROR"]} }'
-    });
+    });*/
 
     //Time for DynamoDB!
     const table = new ddb.CfnTable(this, 'Octank-Table', {
