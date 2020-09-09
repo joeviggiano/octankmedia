@@ -17,7 +17,8 @@ import * as vod720job from '../jobtemplates/720p.json';
 import * as vod1080job from '../jobtemplates/1080p.json';
 import * as vod2160job from '../jobtemplates/2160p.json';
 import { CfnTable } from '@aws-cdk/aws-dynamodb';
-import { Aws, Duration } from '@aws-cdk/core';
+import { Aws, Duration, RemovalPolicy } from '@aws-cdk/core';
+import fs = require('fs');
 
 
 export class OctankStack extends cdk.Stack {
@@ -33,11 +34,12 @@ export class OctankStack extends cdk.Stack {
     //Define S3 Buckets:
     var appendRand = Math.random().toString(36).substring(7);
     const logBucket = new s3.Bucket(this, 'Octank-logs', {
-      bucketName: 'octank-logs-' + appendRand,
+      //bucketName: 'octank-logs-' + appendRand,
       versioned: false,
       publicReadAccess: false,
       blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
-      encryption: BucketEncryption.S3_MANAGED
+      encryption: BucketEncryption.S3_MANAGED,
+      removalPolicy: RemovalPolicy.DESTROY
     });
 
     const destBucket = new s3.Bucket(this, 'Octank-destination', {
@@ -47,7 +49,8 @@ export class OctankStack extends cdk.Stack {
       blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
       serverAccessLogsBucket: logBucket,
       serverAccessLogsPrefix: 's3-access/',
-      encryption: BucketEncryption.S3_MANAGED
+      encryption: BucketEncryption.S3_MANAGED,
+      removalPolicy: RemovalPolicy.DESTROY
     });
 
     const sourceBucket = new s3.Bucket(this, 'Octank-source', {
@@ -57,8 +60,10 @@ export class OctankStack extends cdk.Stack {
       blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
       serverAccessLogsBucket: logBucket,
       serverAccessLogsPrefix: 's3-access/',
-      encryption: BucketEncryption.S3_MANAGED
+      encryption: BucketEncryption.S3_MANAGED,
+      removalPolicy: RemovalPolicy.DESTROY
     });
+
 
     //Define MediaConvert
     //Let's first create our MediaConvert output presets
@@ -83,7 +88,7 @@ export class OctankStack extends cdk.Stack {
       settingsJson: vod2160preset.Settings
     });
 
-    //OK phew, that's done, now the MediaConvert job templates!
+    //MediaConvert job templates
     const job720p = new mc.CfnJobTemplate(this, 'Octank_Ott_720p_Avc_Aac_16x9_qvbr', {
       name: 'Octank_Ott_720p_Avc_Aac_16x9_qvbr',
       category: 'VOD',
@@ -106,16 +111,16 @@ export class OctankStack extends cdk.Stack {
     });
 
     //MediaConvert IAM Roles
-    /*const mc_vod_role = new iam.Role(this, 'Octank-mediapackagevod-policy', {
-      roleName: 'Octank-mediapackagevod-policy',
+    const mc_vod_role = new iam.Role(this, 'Octank-mediapackagevod-policy', {
+      roleName: 'Octank-mediapackagevod-policy-' + appendRand,
       assumedBy: new iam.ServicePrincipal('mediapackage.amazonaws.com'),
     });
     mc_vod_role.addToPolicy(new iam.PolicyStatement({
+      sid: '1',
       actions: ['s3:GetObject', 's3:GetBucketLocation', 's3:GetBucketRequestPayment'],
       resources: [destBucket.bucketArn, destBucket.bucketArn + '/*'],
-      sid: '1',
       effect: iam.Effect.ALLOW
-    }));*/
+    }));
 
     //Lambda
     const mc_lambda_sfn = new lambda.Function(this, 'Octank-step-functions', {
@@ -135,6 +140,18 @@ export class OctankStack extends cdk.Stack {
       }
     });
 
+    const mc_lambda_start = new lambda.Function(this, 'Octank-start-job', {
+      code: new lambda.InlineCode(fs.readFileSync('lambda/start-job.js', { encoding: 'utf-8'})),
+      handler: 'index.handler',
+      runtime: lambda.Runtime.NODEJS_12_X,
+      timeout: Duration.seconds(120),
+      environment: {
+        AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1',
+        MediaConvertEndpoint: 'https://lxlxpswfb.mediaconvert.us-east-1.amazonaws.com'
+      }
+    });
+
+    /*
     const mc_lambda_input = new lambda.Function(this, 'Octank-input-validate', {
       functionName: stack_name + '-input-validate',
       description: 'Validates the input given to the workflow',
@@ -161,7 +178,7 @@ export class OctankStack extends cdk.Stack {
         PublishWorkflow: '',
         ErrorHandler: ''
       }
-    });
+    });*/
     
     //Step Functions, where the magic happens
     /*const mc_ingest_step = new sfn.StateMachine(this, stack_name + '-ingest', {
