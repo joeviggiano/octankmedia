@@ -29,6 +29,7 @@
     "@aws-cdk/aws-stepfunctions": "^1.61.1",
     "@aws-cdk/aws-stepfunctions-tasks": "^1.61.1",
     "@aws-cdk/core": "1.61.1",
-    "source-map-support": "^0.5.16"
+    "source-map-support": "^0.5.16",
+    "uuid": "^8.3.0"
   }
 }
