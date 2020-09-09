@@ -8,7 +8,6 @@ exports.handler = async (event, context, callback) => {
   
   await setMediaConvertEndpoint(mediaconvert);
 
-  //bundle the transcoding job template params
   var bucket = event.Records[0].s3.bucket.name;
   var key = event.Records[0].s3.object.key;
 
