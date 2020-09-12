@@ -1,18 +1,17 @@
 var AWS = require('aws-sdk');
 var mediaconvert = new AWS.MediaConvert({ apiVersion: '2017-08-29' });
-var uuidv4 = require('uuid/v4');
 
 exports.handler = async (event, context, callback) => {
   
   console.log("Invoked from S3 Put Object");
   console.log(event);
-
-  event.guid = uuidv4();
   
   await setMediaConvertEndpoint(mediaconvert);
 
   var bucket = event.Records[0].s3.bucket.name;
   var key = event.Records[0].s3.object.key;
+  const inputPath = 's3://' + event.Records[0].s3.bucket.name + '/' + event.Records[0].s3.object.key;
+  const outputPath = 's3://' + process.env.DestinationBucket + '/' + event.guid;
 
   var params = {
     "Queue": process.env.MediaConvertQueue,
@@ -28,7 +27,15 @@ exports.handler = async (event, context, callback) => {
             "ProgramSelection": 1
             }
           },
-          "FileInput": "s3://" + bucket + "/" + key
+          "FileInput": inputPath
+        }
+      ],
+      "OutputGroups": [
+        {
+          "Type": "FILE_GROUP_SETTINGS",
+          "FileGroupSettings": {
+            "Destination": outputPath
+          }
         }
       ]
     }

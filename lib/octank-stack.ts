@@ -150,7 +150,7 @@ export class Octank extends cdk.Stack {
         MediaConvertRole: '',
         MediaConvertQueue: 'arn:aws:mediaconvert:us-east-1:242707787141:queues/Default',
         MediaConvertTemplate: 'Octank_Ott_1080p_Avc_Aac_16x9_qvbr',
-        DestinationBucket: destBucket.bucketArn
+        DestinationBucket: destBucket.bucketName
       }
     });
 
@@ -179,6 +179,18 @@ export class Octank extends cdk.Stack {
 
     const mc_ingest_step = new sfn.StateMachine(this, 'Octank-ingest', {
       definition: sfn_chain
+    });
+
+    //Lambda to kick off step function
+    const mc_lambda_step = new lambda.Function(this, 'Octank-lambda-step', {
+      code: new lambda.InlineCode(fs.readFileSync('lambda/start-step/start-step.js', { encoding: 'utf-8'})),
+      handler: 'index.handler',
+      runtime: lambda.Runtime.NODEJS_12_X,
+      timeout: Duration.seconds(120),
+      environment: {
+        AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1',
+        IngestStepFunction: mc_ingest_step.stateMachineArn
+      }
     });
 
 
