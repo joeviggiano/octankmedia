@@ -53,6 +53,59 @@ export class Octank extends cdk.Stack {
 
 
     //*********************************//
+    //********    DYNAMODB    ********//
+    //*******************************//
+    const table = new ddb.CfnTable(this, 'Octank-Table', {
+      tableName: 'Octank-Table',
+      billingMode: ddb.BillingMode.PAY_PER_REQUEST,
+      attributeDefinitions: [
+        {
+          attributeName: "guid",
+          attributeType: "S"
+        },{
+          attributeName: "srcBucket",
+          attributeType: "S"
+        },{
+          attributeName: "startTime",
+          attributeType: "S"
+        }
+      ],
+      keySchema: [
+        {
+          attributeName: "guid",
+          keyType: "HASH"
+        }
+      ],
+      globalSecondaryIndexes: [
+        {
+          indexName: "srcBucket-startTime-index",
+          keySchema: [
+            {
+              attributeName: "srcBucket",
+              keyType: "HASH"
+            },{
+              attributeName: "startTime",
+              keyType: "RANGE"
+            }
+          ],
+            projection: {
+              projectionType: "ALL"
+            }
+        }
+      ]
+    });
+    const mc_ddb_role = new iam.Role(this, 'Octank-ddb-role', {
+      assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com')
+    });
+    mc_ddb_role.addToPolicy(new iam.PolicyStatement({
+      sid: 'AllowDDB',
+      actions: ['dynamodb:*'],
+      resources: [table.attrArn],
+      effect: iam.Effect.ALLOW
+    }));
+
+
+    //*********************************//
     //********  MEDIACONVERT  ********//
     //*******************************//
     //Let's first create our MediaConvert output presets
@@ -149,7 +202,7 @@ export class Octank extends cdk.Stack {
       environment: {
         AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1',
         MediaConvertEndpoint: 'https://lxlxpswfb.mediaconvert.us-east-1.amazonaws.com',
-        MediaConvertRole: '',
+        MediaConvertRole: mc_encode_role.roleArn,
         MediaConvertQueue: 'arn:aws:mediaconvert:us-east-1:242707787141:queues/Default',
         MediaConvertTemplate: 'Octank_Ott_1080p_Avc_Aac_16x9_qvbr',
         DestinationBucket: destBucket.bucketName
@@ -163,7 +216,8 @@ export class Octank extends cdk.Stack {
       timeout: Duration.seconds(120),
       environment: {
         AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1'
-      }
+      },
+      role: mc_ddb_role
     });
     
 
@@ -193,6 +247,7 @@ export class Octank extends cdk.Stack {
     );
 
     //Lambda to kick off step function
+    //This function will get called on S3 OBJECT_CREATED event
     const mc_lambda_step = new lambda.Function(this, 'Octank-lambda-step', {
       code: new lambda.InlineCode(fs.readFileSync('lambda/start-step/start-step.js', { encoding: 'utf-8'})),
       handler: 'index.handler',
@@ -204,6 +259,7 @@ export class Octank extends cdk.Stack {
       },
       events: [uploadEvent]
     });
+    mc_ingest_step.grantStartExecution(mc_lambda_step);
     sourceBucket.grantReadWrite(mc_lambda_step);
     sourceBucket.encryptionKey?.grant(mc_lambda_step);
    
@@ -255,50 +311,6 @@ export class Octank extends cdk.Stack {
       description: 'MediaConvert Error event rule',
       //TODO: Add Step Function Target - Line:345
       eventPattern: mc_rule_error
-    });
-
-    
-    //*********************************//
-    //********    DYNAMODB    ********//
-    //*******************************//
-    const table = new ddb.CfnTable(this, 'Octank-Table', {
-      tableName: 'Octank-Table',
-      billingMode: ddb.BillingMode.PAY_PER_REQUEST,
-      attributeDefinitions: [
-        {
-          attributeName: "guid",
-          attributeType: "S"
-        },{
-          attributeName: "srcBucket",
-          attributeType: "S"
-        },{
-          attributeName: "startTime",
-          attributeType: "S"
-        }
-      ],
-      keySchema: [
-        {
-          attributeName: "guid",
-          keyType: "HASH"
-        }
-      ],
-      globalSecondaryIndexes: [
-        {
-          indexName: "srcBucket-startTime-index",
-          keySchema: [
-            {
-              attributeName: "srcBucket",
-              keyType: "HASH"
-            },{
-              attributeName: "startTime",
-              keyType: "RANGE"
-            }
-          ],
-            projection: {
-              projectionType: "ALL"
-            }
-        }
-      ]
     });
 
   }
