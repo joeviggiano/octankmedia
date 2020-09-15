@@ -6,7 +6,6 @@ import sfn = require('@aws-cdk/aws-stepfunctions');
 import tasks = require('@aws-cdk/aws-stepfunctions-tasks');
 import lambda = require('@aws-cdk/aws-lambda');
 import sns = require('@aws-cdk/aws-sns');
-import s3n = require('@aws-cdk/aws-s3-notifications');
 import ddb = require('@aws-cdk/aws-dynamodb');
 import events = require('@aws-cdk/aws-events');
 import { BucketEncryption, BlockPublicAccess } from '@aws-cdk/aws-s3';
@@ -19,36 +18,27 @@ import * as vod2160job from '../jobtemplates/2160p.json';
 import { CfnTable } from '@aws-cdk/aws-dynamodb';
 import { Aws, Duration, RemovalPolicy } from '@aws-cdk/core';
 import fs = require('fs');
-import { Task } from '@aws-cdk/aws-stepfunctions';
-import { InvokeFunction } from '@aws-cdk/aws-stepfunctions-tasks';
+import s3event = require('@aws-cdk/aws-lambda-event-sources');
 
 
 export class Octank extends cdk.Stack {
   constructor(scope: cdk.Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
-    //Things we'll need later on...
+    //*********************************//
+    //********   S3 BUCKETS   ********//
+    //*******************************//
     const stack_name = Aws.STACK_NAME;
     const codeBucket = s3.Bucket.fromBucketAttributes(this, 'octank-cdk-files', {
       bucketArn: 'arn:aws:s3:::octank-cdk-files'
     });
 
-    //Define S3 Buckets:
     var appendRand = Math.random().toString(36).substring(7);
-    /*const logBucket = new s3.Bucket(this, 'Octank-logs', {
-      versioned: false,
-      publicReadAccess: false,
-      blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
-      encryption: BucketEncryption.S3_MANAGED,
-      removalPolicy: RemovalPolicy.DESTROY
-    });*/
 
     const destBucket = new s3.Bucket(this, 'Octank-destination', {
       versioned: false,
       publicReadAccess: false,
       blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
-      //serverAccessLogsBucket: logBucket,
-      //serverAccessLogsPrefix: 's3-access/',
       encryption: BucketEncryption.S3_MANAGED,
       removalPolicy: RemovalPolicy.DESTROY
     });
@@ -57,14 +47,14 @@ export class Octank extends cdk.Stack {
       versioned: false,
       publicReadAccess: false,
       blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
-      //serverAccessLogsBucket: logBucket,
-      //serverAccessLogsPrefix: 's3-access/',
       encryption: BucketEncryption.S3_MANAGED,
       removalPolicy: RemovalPolicy.DESTROY
     });
 
 
-    //Define MediaConvert
+    //*********************************//
+    //********  MEDIACONVERT  ********//
+    //*******************************//
     //Let's first create our MediaConvert output presets
     const vod720p = new mc.CfnPreset(this, 'Octank_Mp4_Avc_Aac_16x9_1280x720p_24Hz_4.5Mbps_qvbr', {
       name: 'Octank_Mp4_Avc_Aac_16x9_1280x720p_24Hz_4.5Mbps_qvbr',
@@ -110,18 +100,30 @@ export class Octank extends cdk.Stack {
     });
 
     //MediaConvert IAM Roles
-    const mc_vod_role = new iam.Role(this, 'Octank-mediapackagevod-policy', {
-      roleName: 'Octank-mediapackagevod-policy-' + appendRand,
+    const mc_output_role = new iam.Role(this, 'Octank-mediaconvert-output', {
       assumedBy: new iam.ServicePrincipal('mediapackage.amazonaws.com'),
     });
-    mc_vod_role.addToPolicy(new iam.PolicyStatement({
-      sid: '1',
+    mc_output_role.addToPolicy(new iam.PolicyStatement({
+      sid: 'AllowS3',
       actions: ['s3:GetObject', 's3:GetBucketLocation', 's3:GetBucketRequestPayment'],
       resources: [destBucket.bucketArn, destBucket.bucketArn + '/*'],
       effect: iam.Effect.ALLOW
     }));
 
-    //Lambda
+    const mc_encode_role = new iam.Role(this, 'Octank-mediaconvert-encode', {
+      assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com')
+    });
+    mc_encode_role.addToPolicy(new iam.PolicyStatement({
+      sid: 'AllowMediaConvert',
+      actions: ['mediaconvert:*'],
+      resources: ['arn:aws:mediaconvert:*:*:*'],
+      effect: iam.Effect.ALLOW
+    }));
+
+
+    //*********************************//
+    //********     LAMBDA     ********//
+    //*******************************//
     const mc_lambda_sfn = new lambda.Function(this, 'Octank-step-functions', {
       functionName: stack_name + '-step-functions',
       description: 'Creates a unique identifer (GUID) and executes the Ingest StateMachine',
@@ -164,22 +166,31 @@ export class Octank extends cdk.Stack {
       }
     });
     
-    //Step Functions, where the magic happens
+
+    //*********************************//
+    //******** STEP FUNCTIONS ********//
+    //*******************************//
     //Define Tasks
-    const snf_ingest = new sfn.Task(this, 'MediaConvert Ingest', {
-      task: new InvokeFunction(mc_lambda_start)
+    const snf_ingest = new tasks.LambdaInvoke(this, 'MediaConvert Ingest', {
+      lambdaFunction: mc_lambda_start
     });
-    const snf_ddb = new sfn.Task(this, 'MediaConvert DDB', {
-      task: new InvokeFunction(mc_lambda_ddb)
+    const snf_ddb = new tasks.LambdaInvoke(this, 'MediaConvert DDB', {
+      lambdaFunction: mc_lambda_ddb
     });
 
     //Define Chain
-    const sfn_chain = sfn.Chain.start(snf_ingest);
-    //.next(snf_ddb);
-
+    const sfn_chain = sfn.Chain.start(snf_ingest)
+    .next(snf_ddb);
     const mc_ingest_step = new sfn.StateMachine(this, 'Octank-ingest', {
       definition: sfn_chain
     });
+
+    //Define S3 Event
+    const uploadEvent = new s3event.S3EventSource(
+      sourceBucket, {
+        events: [s3.EventType.OBJECT_CREATED]
+      }
+    );
 
     //Lambda to kick off step function
     const mc_lambda_step = new lambda.Function(this, 'Octank-lambda-step', {
@@ -190,12 +201,17 @@ export class Octank extends cdk.Stack {
       environment: {
         AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1',
         IngestStepFunction: mc_ingest_step.stateMachineArn
-      }
+      },
+      events: [uploadEvent]
     });
+    sourceBucket.grantReadWrite(mc_lambda_step);
+    sourceBucket.encryptionKey?.grant(mc_lambda_step);
+   
 
-
-    //MediaConvert Rules
-    //Define Event Pattern
+    //*********************************//
+    //********     EVENTS     ********//
+    //*******************************//
+    //Define Event Patterns
     const mc_rule_complete :events.EventPattern ={
       source: [
         'aws.mediaconvert'
@@ -241,7 +257,10 @@ export class Octank extends cdk.Stack {
       eventPattern: mc_rule_error
     });
 
-    //Time for DynamoDB!
+    
+    //*********************************//
+    //********    DYNAMODB    ********//
+    //*******************************//
     const table = new ddb.CfnTable(this, 'Octank-Table', {
       tableName: 'Octank-Table',
       billingMode: ddb.BillingMode.PAY_PER_REQUEST,
