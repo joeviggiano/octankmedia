@@ -108,7 +108,7 @@ export class Octank extends cdk.Stack {
     //*********************************//
     //********  MEDIACONVERT  ********//
     //*******************************//
-    //Let's first create our MediaConvert output presets
+    //MediaConvert output presets
     const vod720p = new mc.CfnPreset(this, 'Octank_Mp4_Avc_Aac_16x9_1280x720p_24Hz_4.5Mbps_qvbr', {
       name: 'Octank_Mp4_Avc_Aac_16x9_1280x720p_24Hz_4.5Mbps_qvbr',
       category: 'VOD',
@@ -196,6 +196,7 @@ export class Octank extends cdk.Stack {
 
     const mc_lambda_start = new lambda.Function(this, 'Octank-lambda-start', {
       code: new lambda.InlineCode(fs.readFileSync('lambda/start-job/start-job.js', { encoding: 'utf-8'})),
+      description: 'Creates and Executes MediaConvert Job',
       handler: 'index.handler',
       runtime: lambda.Runtime.NODEJS_12_X,
       timeout: Duration.seconds(120),
@@ -211,6 +212,7 @@ export class Octank extends cdk.Stack {
 
     const mc_lambda_ddb = new lambda.Function(this, 'Octank-lambda-ddb', {
       code: new lambda.InlineCode(fs.readFileSync('lambda/start-job/start-job.js', { encoding: 'utf-8'})),
+      description: 'Logs UUID and MediaConvert Job Info to DDB',
       handler: 'index.handler',
       runtime: lambda.Runtime.NODEJS_12_X,
       timeout: Duration.seconds(120),
@@ -250,6 +252,7 @@ export class Octank extends cdk.Stack {
     //This function will get called on S3 OBJECT_CREATED event
     const mc_lambda_step = new lambda.Function(this, 'Octank-lambda-step', {
       code: new lambda.InlineCode(fs.readFileSync('lambda/start-step/start-step.js', { encoding: 'utf-8'})),
+      description: 'S3 Event Listener and Starts Ingestion Step Function',
       handler: 'index.handler',
       runtime: lambda.Runtime.NODEJS_12_X,
       timeout: Duration.seconds(120),
