@@ -19,6 +19,7 @@ import { CfnTable } from '@aws-cdk/aws-dynamodb';
 import { Aws, Duration, RemovalPolicy } from '@aws-cdk/core';
 import fs = require('fs');
 import s3event = require('@aws-cdk/aws-lambda-event-sources');
+import target = require('@aws-cdk/aws-events-targets');
 
 
 export class Octank extends cdk.Stack {
@@ -248,8 +249,9 @@ export class Octank extends cdk.Stack {
       runtime: lambda.Runtime.NODEJS_12_X,
       timeout: Duration.seconds(120),
       environment: {
-        AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1'
-      },
+        AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1',
+        DestinationBucket: destBucket.bucketName
+      }
     });
     
 
@@ -263,12 +265,20 @@ export class Octank extends cdk.Stack {
     const snf_ddb = new tasks.LambdaInvoke(this, 'MediaConvert DDB', {
       lambdaFunction: mc_lambda_ddb
     });
+    const snf_transcribe = new tasks.LambdaInvoke(this , 'Transcribe Task', {
+      lambdaFunction: mc_lambda_transcribe
+    });
 
     //Define Step Function Chain
     const sfn_chain = sfn.Chain.start(snf_ingest)
     .next(snf_ddb);
     const mc_ingest_step = new sfn.StateMachine(this, 'Octank-ingest', {
       definition: sfn_chain
+    });
+
+    const sfn_chain_transcribe = sfn.Chain.start(snf_transcribe);
+    const mc_transcribe_step = new sfn.StateMachine(this, 'Octank-transcribe', {
+      definition: sfn_chain_transcribe
     });
 
     //Define S3 Event
@@ -333,18 +343,16 @@ export class Octank extends cdk.Stack {
     }
     
     //Create Event Rules
-    const mc_event_complete = new events.CfnRule(this, 'Octank-Encode-Complete',{
+    const mc_event_complete = new events.Rule(this, 'Octakn-Encode-Complete', {
       description: 'MediaConvert Completed event rule',
-      //TODO: Add Step Function Target - Line:325
       eventPattern: mc_rule_complete
     });
-    
-    
+    mc_event_complete.addTarget(new target.SfnStateMachine(mc_transcribe_step));
+
     const mcevent_event_error = new events.CfnRule(this, 'Octank-Encode-Error',{
       description: 'MediaConvert Error event rule',
       //TODO: Add Step Function Target - Line:345
       eventPattern: mc_rule_error
     });
-
   }
 }
