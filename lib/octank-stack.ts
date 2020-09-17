@@ -160,12 +160,18 @@ export class Octank extends cdk.Stack {
 
     //MediaConvert IAM Roles
     const mc_output_role = new iam.Role(this, 'Octank-mediaconvert-output', {
-      assumedBy: new iam.ServicePrincipal('mediapackage.amazonaws.com'),
+      assumedBy: new iam.ServicePrincipal('mediaconvert.amazonaws.com'),
     });
     mc_output_role.addToPolicy(new iam.PolicyStatement({
       sid: 'AllowS3',
-      actions: ['s3:GetObject', 's3:GetBucketLocation', 's3:GetBucketRequestPayment'],
-      resources: [destBucket.bucketArn, destBucket.bucketArn + '/*'],
+      actions: ['s3:*Object', 's3:GetBucketLocation', 's3:GetBucketRequestPayment'],
+      resources: [destBucket.bucketArn, destBucket.bucketArn + '/*', sourceBucket.bucketArn, sourceBucket.bucketArn + '/*'],
+      effect: iam.Effect.ALLOW
+    }));
+    mc_output_role.addToPolicy(new iam.PolicyStatement({
+      sid: 'AllowMediaConvert',
+      actions: ['mediaconvert:*'],
+      resources: ['arn:aws:mediaconvert:*:*:*'],
       effect: iam.Effect.ALLOW
     }));
 
@@ -176,6 +182,28 @@ export class Octank extends cdk.Stack {
       sid: 'AllowMediaConvert',
       actions: ['mediaconvert:*'],
       resources: ['arn:aws:mediaconvert:*:*:*'],
+      effect: iam.Effect.ALLOW
+    }));
+
+    const mc_start_role = new iam.Role(this, 'Octank-mediaconvert-start', {
+      assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
+    });
+    mc_start_role.addToPolicy(new iam.PolicyStatement({
+      sid: 'AllowLogs',
+      actions: ['logs:CreateLogGroup','logs:CreateLogStream','logs:PutLogEvents'],
+      resources: ['*'],
+      effect: iam.Effect.ALLOW
+    }));
+    mc_start_role.addToPolicy(new iam.PolicyStatement({
+      sid: 'AllowMediaConvert',
+      actions: ['mediaconvert:*'],
+      resources: ['arn:aws:mediaconvert:*:*:*'],
+      effect: iam.Effect.ALLOW
+    }));
+    mc_start_role.addToPolicy(new iam.PolicyStatement({
+      sid: 'AllowPassRole',
+      actions: ['iam:PassRole'],
+      resources: [mc_encode_role.roleArn, mc_output_role.roleArn],
       effect: iam.Effect.ALLOW
     }));
 
@@ -192,11 +220,12 @@ export class Octank extends cdk.Stack {
       environment: {
         AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1',
         MediaConvertEndpoint: 'https://lxlxpswfb.mediaconvert.us-east-1.amazonaws.com',
-        MediaConvertRole: mc_encode_role.roleArn,
+        MediaConvertRole: mc_output_role.roleArn,
         MediaConvertQueue: 'arn:aws:mediaconvert:us-east-1:242707787141:queues/Default',
         MediaConvertTemplate: 'Octank_Ott_1080p_Avc_Aac_16x9_qvbr',
         DestinationBucket: destBucket.bucketName
-      }
+      },
+      role: mc_start_role
     });
 
     const mc_lambda_ddb = new lambda.Function(this, 'Octank-lambda-ddb', {
@@ -210,6 +239,17 @@ export class Octank extends cdk.Stack {
         DynamoDBTable: 'Octank-Table'
       },
       role: mc_ddb_role
+    });
+
+    const mc_lambda_transcribe = new lambda.Function(this, 'Octank-lambda-transcribe', {
+      code: new lambda.InlineCode(fs.readFileSync('lambda/transcribe/index.js', { encoding: 'utf-8'})),
+      description: 'Run Transcribe Job',
+      handler: 'index.handler',
+      runtime: lambda.Runtime.NODEJS_12_X,
+      timeout: Duration.seconds(120),
+      environment: {
+        AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1'
+      },
     });
     
 

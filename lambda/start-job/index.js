@@ -9,11 +9,11 @@ exports.handler = async (event, context, callback) => {
   await setMediaConvertEndpoint(mediaconvert);
 
   const inputPath = 's3://' + event.Records[0].s3.bucket.name + '/' + event.Records[0].s3.object.key;
-  const outputPath = 's3://' + process.env.DestinationBucket + '/' + event.guid;
+  const outputPath = 's3://' + process.env.DestinationBucket + '/' + event.guid + '/';
 
   var params = {
     "Queue": process.env.MediaConvertQueue,
-    "JobTemplate": "Octank-MediaConvert-JobTemplate",
+    "JobTemplate": process.env.MediaConvertTemplate,
     "Role": process.env.MediaConvertRole,
     "Settings": {
       "Inputs": [
@@ -30,9 +30,11 @@ exports.handler = async (event, context, callback) => {
       ],
       "OutputGroups": [
         {
-          "Type": "FILE_GROUP_SETTINGS",
-          "FileGroupSettings": {
-            "Destination": outputPath
+          "OutputGroupSettings": {
+            "Type": "FILE_GROUP_SETTINGS",
+            "FileGroupSettings": {
+              "Destination": outputPath
+            }
           }
         }
       ]
@@ -43,7 +45,10 @@ exports.handler = async (event, context, callback) => {
     .then(
       function(data) {
         console.log("Job created! ", data);
-        callback(null, 'Done');
+        event.srcBucket = JSON.stringify(inputPath);
+        event.destBucket = JSON.stringify(outputPath);
+        event.srcMediaInfo = JSON.stringify(data);
+        callback(null, event);
       },
       function(err) {
         console.log("Error", err);

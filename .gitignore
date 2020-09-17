@@ -3,6 +3,7 @@
 !lambda/start-job/*
 !lambda/start-step/*
 !lambda/ddb/*
+!lambda/transcribe/*
 *.d.ts
 node_modules
 
