@@ -2,6 +2,7 @@
 !jest.config.js
 !lambda/start-job/*
 !lambda/start-step/*
+!lambda/ddb/*
 *.d.ts
 node_modules
 
