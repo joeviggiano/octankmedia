@@ -103,6 +103,12 @@ export class Octank extends cdk.Stack {
       resources: [table.attrArn],
       effect: iam.Effect.ALLOW
     }));
+    mc_ddb_role.addToPolicy(new iam.PolicyStatement({
+      sid: 'AllowLogs',
+      actions: ['logs:CreateLogGroup','logs:CreateLogStream','logs:PutLogEvents'],
+      resources: ['*'],
+      effect: iam.Effect.ALLOW
+    }));
 
 
     //*********************************//
@@ -177,25 +183,8 @@ export class Octank extends cdk.Stack {
     //*********************************//
     //********     LAMBDA     ********//
     //*******************************//
-    const mc_lambda_sfn = new lambda.Function(this, 'Octank-step-functions', {
-      functionName: stack_name + '-step-functions',
-      description: 'Creates a unique identifer (GUID) and executes the Ingest StateMachine',
-      handler: 'index.handler',
-      runtime: lambda.Runtime.NODEJS_12_X,
-      code: lambda.Code.fromBucket(codeBucket, 'step-functions.zip'),
-      timeout: Duration.seconds(120),
-      environment: {
-        //TODO: Add ARN's for State Machines here
-        AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1',
-        IngestWorkflow: '',
-        ProcessWorkflow: '',
-        PublishWorkflow: '',
-        ErrorHandler: ''
-      }
-    });
-
     const mc_lambda_start = new lambda.Function(this, 'Octank-lambda-start', {
-      code: new lambda.InlineCode(fs.readFileSync('lambda/start-job/start-job.js', { encoding: 'utf-8'})),
+      code: new lambda.InlineCode(fs.readFileSync('lambda/start-job/index.js', { encoding: 'utf-8'})),
       description: 'Creates and Executes MediaConvert Job',
       handler: 'index.handler',
       runtime: lambda.Runtime.NODEJS_12_X,
@@ -211,13 +200,14 @@ export class Octank extends cdk.Stack {
     });
 
     const mc_lambda_ddb = new lambda.Function(this, 'Octank-lambda-ddb', {
-      code: new lambda.InlineCode(fs.readFileSync('lambda/start-job/start-job.js', { encoding: 'utf-8'})),
-      description: 'Logs UUID and MediaConvert Job Info to DDB',
+      code: new lambda.InlineCode(fs.readFileSync('lambda/ddb/index.js', { encoding: 'utf-8'})),
+      description: 'Add MediaConvert Job Info to DDB',
       handler: 'index.handler',
       runtime: lambda.Runtime.NODEJS_12_X,
       timeout: Duration.seconds(120),
       environment: {
-        AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1'
+        AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1',
+        DynamoDBTable: 'Octank-Table'
       },
       role: mc_ddb_role
     });
@@ -226,7 +216,7 @@ export class Octank extends cdk.Stack {
     //*********************************//
     //******** STEP FUNCTIONS ********//
     //*******************************//
-    //Define Tasks
+    //Define Step Function Tasks
     const snf_ingest = new tasks.LambdaInvoke(this, 'MediaConvert Ingest', {
       lambdaFunction: mc_lambda_start
     });
@@ -234,7 +224,7 @@ export class Octank extends cdk.Stack {
       lambdaFunction: mc_lambda_ddb
     });
 
-    //Define Chain
+    //Define Step Function Chain
     const sfn_chain = sfn.Chain.start(snf_ingest)
     .next(snf_ddb);
     const mc_ingest_step = new sfn.StateMachine(this, 'Octank-ingest', {
@@ -251,7 +241,7 @@ export class Octank extends cdk.Stack {
     //Lambda to kick off step function
     //This function will get called on S3 OBJECT_CREATED event
     const mc_lambda_step = new lambda.Function(this, 'Octank-lambda-step', {
-      code: new lambda.InlineCode(fs.readFileSync('lambda/start-step/start-step.js', { encoding: 'utf-8'})),
+      code: lambda.Code.fromBucket(codeBucket, 'start-step.zip'),
       description: 'S3 Event Listener and Starts Ingestion Step Function',
       handler: 'index.handler',
       runtime: lambda.Runtime.NODEJS_12_X,

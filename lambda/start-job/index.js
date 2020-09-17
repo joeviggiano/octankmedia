@@ -4,7 +4,7 @@ var mediaconvert = new AWS.MediaConvert({ apiVersion: '2017-08-29' });
 exports.handler = async (event, context, callback) => {
   
   console.log("Invoked from S3 Put Object");
-  console.log(event);
+  console.log(`REQUEST:: ${JSON.stringify(event, null, 2)}`);
   
   await setMediaConvertEndpoint(mediaconvert);
 
