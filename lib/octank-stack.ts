@@ -397,9 +397,6 @@ export class Octank extends cdk.Stack {
       proxy: false,
       integrationResponses: [{
         statusCode: '200',
-        responseTemplates: {
-          'application/json': '{ "statusCode": 200 }',
-        }
       }],
       passthroughBehavior: apigw.PassthroughBehavior.NEVER,
       requestTemplates: {
@@ -408,7 +405,16 @@ export class Octank extends cdk.Stack {
     });
 
     apifiles.addMethod('GET', getAllFiles), {
-      methodResponses: [{ statusCode: '200' }],
+      methodResponses: [{
+        // Successful response from the integration
+        statusCode: '200',
+        // Define what parameters are allowed or not
+        responseParameters: {
+          'method.response.header.Content-Type': true,
+          'method.response.header.Access-Control-Allow-Origin': true,
+          'method.response.header.Access-Control-Allow-Credentials': true
+        }
+      }],
     };
   }
 }
