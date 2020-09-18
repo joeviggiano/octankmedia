@@ -20,6 +20,7 @@ import { Aws, Duration, RemovalPolicy } from '@aws-cdk/core';
 import fs = require('fs');
 import s3event = require('@aws-cdk/aws-lambda-event-sources');
 import target = require('@aws-cdk/aws-events-targets');
+import apigw = require('@aws-cdk/aws-apigateway');
 
 
 export class Octank extends cdk.Stack {
@@ -384,5 +385,16 @@ export class Octank extends cdk.Stack {
       description: 'MediaConvert Error event rule',
       eventPattern: mc_rule_error
     });
+
+
+    const api = new apigw.RestApi(this, 'Octank-Get-Files', {
+      restApiName: 'Get Files'
+    });
+
+    const apifiles = api.root.addResource('file');
+    const getAllFiles = new apigw.LambdaIntegration(mc_lambda_api, {
+      proxy: false
+    });
+    apifiles.addMethod('GET', getAllFiles);
   }
 }

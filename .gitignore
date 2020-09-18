@@ -5,7 +5,6 @@
 !lambda/ddb/*
 !lambda/transcribe/*
 !lambda/ddb-api/*
-!lambda/s3-api/*
 *.d.ts
 node_modules
 

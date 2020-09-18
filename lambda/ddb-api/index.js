@@ -19,6 +19,7 @@ exports.handler = async (event, context, callback) => {
 
     let scanResults = [];
     var s3Results = [];
+    var s3Urls = [];
     let items;
     
     do {
@@ -44,8 +45,16 @@ exports.handler = async (event, context, callback) => {
         }
         s3Results.push(data['Contents'][index]['Key']);
       }
-
-
     }
-    callback(null, s3Results);
+
+    for (let i = 0; i < s3Results.length; i++) {
+      var urlparams = {
+        Bucket: process.env.DestinationBucket, 
+        Key: s3Results[i],
+        Expires: 60
+      };
+      s3Urls.push(s3.getSignedUrl('getObject', urlparams));
+    }
+
+    callback(null, s3Urls);
 };
