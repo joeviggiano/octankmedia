@@ -51,7 +51,7 @@ exports.handler = async (event, context, callback) => {
       var urlparams = {
         Bucket: process.env.DestinationBucket, 
         Key: s3Results[i],
-        Expires: 60
+        Expires: 600
       };
       s3Urls.push(s3.getSignedUrl('getObject', urlparams));
     }
