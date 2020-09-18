@@ -15,6 +15,9 @@ exports.handler = async (event, context, callback) => {
     "Queue": process.env.MediaConvertQueue,
     "JobTemplate": process.env.MediaConvertTemplate,
     "Role": process.env.MediaConvertRole,
+    "UserMetadata": {
+      "guid": event.guid
+    },
     "Settings": {
       "Inputs": [
         {

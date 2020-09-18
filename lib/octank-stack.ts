@@ -208,6 +208,22 @@ export class Octank extends cdk.Stack {
       effect: iam.Effect.ALLOW
     }));
 
+    const mc_start_transcribe = new iam.Role(this, 'Octank-transcribe-start', {
+      assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
+    });
+    mc_start_transcribe.addToPolicy(new iam.PolicyStatement({
+      sid: 'AllowLogs',
+      actions: ['logs:CreateLogGroup','logs:CreateLogStream','logs:PutLogEvents'],
+      resources: ['*'],
+      effect: iam.Effect.ALLOW
+    }));
+    mc_start_transcribe.addToPolicy(new iam.PolicyStatement({
+      sid: 'AllowTranscribe',
+      actions: ['transcribe:*'],
+      resources: ['*'],
+      effect: iam.Effect.ALLOW
+    }));
+
 
     //*********************************//
     //********     LAMBDA     ********//
@@ -251,31 +267,36 @@ export class Octank extends cdk.Stack {
       environment: {
         AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1',
         DestinationBucket: destBucket.bucketName
-      }
+      },
+      role: mc_start_transcribe
     });
+    destBucket.grantReadWrite(mc_lambda_transcribe);
     
 
     //*********************************//
     //******** STEP FUNCTIONS ********//
     //*******************************//
-    //Define Step Function Tasks
+    //Define Step Function Tasks - Pre-Transcoding
     const snf_ingest = new tasks.LambdaInvoke(this, 'MediaConvert Ingest', {
       lambdaFunction: mc_lambda_start
     });
     const snf_ddb = new tasks.LambdaInvoke(this, 'MediaConvert DDB', {
       lambdaFunction: mc_lambda_ddb
     });
+
+    //Define Step Function Tasks - Post-Transcoding
     const snf_transcribe = new tasks.LambdaInvoke(this , 'Transcribe Task', {
       lambdaFunction: mc_lambda_transcribe
     });
 
-    //Define Step Function Chain
-    const sfn_chain = sfn.Chain.start(snf_ingest)
+    //Define Step Function Chain - Pre-Transcoding
+    const sfn_chain_ingest = sfn.Chain.start(snf_ingest)
     .next(snf_ddb);
     const mc_ingest_step = new sfn.StateMachine(this, 'Octank-ingest', {
-      definition: sfn_chain
+      definition: sfn_chain_ingest
     });
 
+    //Define Step Function Chain - Post-Transcoding
     const sfn_chain_transcribe = sfn.Chain.start(snf_transcribe);
     const mc_transcribe_step = new sfn.StateMachine(this, 'Octank-transcribe', {
       definition: sfn_chain_transcribe
@@ -316,14 +337,9 @@ export class Octank extends cdk.Stack {
         'aws.mediaconvert'
       ],
       detail: {
-        'userMetadata': {
-          'workflow': [
-            'VOD'
-          ]
-        },
         'status': [
           'COMPLETE'
-        ] 
+        ]
       }
     }
     const mc_rule_error :events.EventPattern ={
@@ -331,14 +347,9 @@ export class Octank extends cdk.Stack {
         'aws.mediaconvert'
       ],
       detail: {
-        'userMetadata': {
-          'workflow': [
-            'VOD'
-          ]
-        },
         'status': [
           'ERROR'
-        ] 
+        ]
       }
     }
     
