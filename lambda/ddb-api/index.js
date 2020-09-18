@@ -12,17 +12,40 @@ exports.handler = async (event, context, callback) => {
     TableName: process.env.DynamoDBTable 
   };
 
+  var s3params = {
+    Bucket: process.env.DestinationBucket,
+    Prefix: event.guid
+  };
+
     let scanResults = [];
+    var s3Results = [];
     let items;
     
     do {
         items = await dynamo.scan(params).promise();
-        //items.Items.forEach((item) => scanResults.push(item));
         items.Items.forEach(function(tbl) {
           scanResults.push(tbl.guid);
         });
         params.ExclusiveStartKey = items.LastEvaluatedKey;
     } while (typeof items.LastEvaluatedKey != "undefined");
 
-    callback(null, scanResults);
+    for (let i = 0; i < scanResults.length; i++) {
+
+      var s3params = {
+        Bucket: process.env.DestinationBucket,
+        Prefix: scanResults[i]
+      };
+
+      const data = await s3.listObjects(s3params).promise();
+
+      for (let index = 0; index < data['Contents'].length; index++) {
+        if(index == 0) {
+          s3Results.push('transcribe_' + scanResults[i]+ '.json');
+        }
+        s3Results.push(data['Contents'][index]['Key']);
+      }
+
+
+    }
+    callback(null, s3Results);
 };
