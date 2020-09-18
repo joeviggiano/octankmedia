@@ -159,6 +159,10 @@ export class Octank extends cdk.Stack {
       settingsJson: vod2160job.Settings
     });
 
+    
+    //*********************************//
+    //********   IAM ROLES    ********//
+    //*******************************//
     //MediaConvert IAM Roles
     const mc_output_role = new iam.Role(this, 'Octank-mediaconvert-output', {
       assumedBy: new iam.ServicePrincipal('mediaconvert.amazonaws.com'),
@@ -176,6 +180,7 @@ export class Octank extends cdk.Stack {
       effect: iam.Effect.ALLOW
     }));
 
+    //Lambda IAM Roles
     const mc_encode_role = new iam.Role(this, 'Octank-mediaconvert-encode', {
       assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com')
     });
@@ -271,6 +276,21 @@ export class Octank extends cdk.Stack {
       role: mc_start_transcribe
     });
     destBucket.grantReadWrite(mc_lambda_transcribe);
+
+    const mc_lambda_api = new lambda.Function(this, 'Octank-lambda-api', {
+      code: new lambda.InlineCode(fs.readFileSync('lambda/ddb-api/index.js', { encoding: 'utf-8'})),
+      description: 'DDB Scan Table for API',
+      handler: 'index.handler',
+      runtime: lambda.Runtime.NODEJS_12_X,
+      timeout: Duration.seconds(120),
+      environment: {
+        AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1',
+        DynamoDBTable: 'Octank-Table',
+        DestinationBucket: destBucket.bucketName
+      },
+      role: mc_ddb_role
+    });
+    destBucket.grantReadWrite(mc_lambda_api);
     
 
     //*********************************//
@@ -360,9 +380,8 @@ export class Octank extends cdk.Stack {
     });
     mc_event_complete.addTarget(new target.SfnStateMachine(mc_transcribe_step));
 
-    const mcevent_event_error = new events.CfnRule(this, 'Octank-Encode-Error',{
+    const mcevent_event_error = new events.Rule(this, 'Octank-Encode-Error',{
       description: 'MediaConvert Error event rule',
-      //TODO: Add Step Function Target - Line:345
       eventPattern: mc_rule_error
     });
   }
