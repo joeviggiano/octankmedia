@@ -388,12 +388,20 @@ export class Octank extends cdk.Stack {
 
 
     const api = new apigw.RestApi(this, 'Octank-Get-Files', {
-      restApiName: 'Get Files'
+      restApiName: 'Get Files',
+      endpointTypes: [apigw.EndpointType.REGIONAL]
     });
 
     const apifiles = api.root.addResource('file');
     const getAllFiles = new apigw.LambdaIntegration(mc_lambda_api, {
-      proxy: false
+      proxy: false,
+      integrationResponses: [{
+        statusCode: '200',
+      }],
+      passthroughBehavior: apigw.PassthroughBehavior.NEVER,
+      requestTemplates: {
+        'application/json': '{ "statusCode": 200 }',
+      }
     });
     apifiles.addMethod('GET', getAllFiles);
   }
