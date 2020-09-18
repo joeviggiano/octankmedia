@@ -387,6 +387,9 @@ export class Octank extends cdk.Stack {
     });
 
 
+    //*********************************//
+    //********  API GATEWAY   ********//
+    //*******************************//
     const api = new apigw.RestApi(this, 'Octank-Get-Files', {
       restApiName: 'Get Files',
       endpointTypes: [apigw.EndpointType.REGIONAL]
