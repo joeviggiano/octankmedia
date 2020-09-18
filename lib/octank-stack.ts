@@ -145,6 +145,7 @@ export class Octank extends cdk.Stack {
       description: 'Octank_Ott_720p_Avc_Aac_16x9_qvbr',
       settingsJson: vod720job.Settings
     });
+    job720p.addDependsOn(vod720p);
 
     const job1080p = new mc.CfnJobTemplate(this, 'Octank_Ott_1080p_Avc_Aac_16x9_qvbr', {
       name: 'Octank_Ott_1080p_Avc_Aac_16x9_qvbr',
@@ -152,6 +153,7 @@ export class Octank extends cdk.Stack {
       description: 'Octank_Ott_1080p_Avc_Aac_16x9_qvbr',
       settingsJson: vod1080job.Settings
     });
+    job1080p.addDependsOn(vod1080p);
 
     const job2160p = new mc.CfnJobTemplate(this, 'Octank_Ott_2160p_Avc_Aac_16x9_qvbr', {
       name: 'Octank_Ott_2160p_Avc_Aac_16x9_qvbr',
@@ -159,6 +161,7 @@ export class Octank extends cdk.Stack {
       description: 'Octank_Ott_2160p_Avc_Aac_16x9_qvbr',
       settingsJson: vod2160job.Settings
     });
+    job2160p.addDependsOn(vod2160p);
 
     
     //*********************************//
