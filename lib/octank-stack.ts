@@ -397,12 +397,18 @@ export class Octank extends cdk.Stack {
       proxy: false,
       integrationResponses: [{
         statusCode: '200',
+        responseTemplates: {
+          'application/json': '{ "statusCode": 200 }',
+        }
       }],
       passthroughBehavior: apigw.PassthroughBehavior.NEVER,
       requestTemplates: {
         'application/json': '{ "statusCode": 200 }',
-      }
+      },
     });
-    apifiles.addMethod('GET', getAllFiles);
+
+    apifiles.addMethod('GET', getAllFiles), {
+      methodResponses: [{ statusCode: '200' }],
+    };
   }
 }
