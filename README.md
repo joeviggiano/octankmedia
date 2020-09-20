@@ -1,6 +1,10 @@
-# Welcome to your CDK TypeScript project!
+# Octank Media POC CDK Project
 
-This is a blank project for TypeScript development with CDK.
+This is a POC project for Octank Media to show video encoding on AWS.
+
+![Image of Diagram]
+(https://github.com/joeviggiano/octankmedia/blob/master/assets/diagram-github.jpg)
+
 
 The `cdk.json` file tells the CDK Toolkit how to execute your app.
 
