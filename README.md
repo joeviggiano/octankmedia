@@ -5,6 +5,12 @@ This is a POC project for Octank Media to show video encoding on AWS.
 ![Image of Diagram](https://github.com/joeviggiano/octankmedia/blob/master/assets/diagram-github.jpg)
 
 
+## What to update when you deploy:
+
+* `MediaConvertEndpoint`    The unique MediaConvert Endpoint for your account and region (line 248 of octank-stack.ts)
+* `MediaConvertQueue`       The default MediaConvert queue ARN for your account and region (line 250 of octank-stack.ts)
+
+
 The `cdk.json` file tells the CDK Toolkit how to execute your app.
 
 ## Useful commands
