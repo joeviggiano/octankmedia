@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://code.jquery.com/jquery-3.5.0.js"></script>
+
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" integrity="sha384-JcKb8q3iqJ61gNV9KGb8thSsNjpSL0n8PARn9HuZOnIxN0hoP+VmmDGMN5t9UJ0Z" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js" integrity="sha384-9/reFTGAW83EW2RDu2S0VKaIzap3H66lZH81PoYlFhbGU+6BZp6G7niu735Sk7lN" crossorigin="anonymous"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js" integrity="sha384-B4gt1jrGC7Jh4AgTPSdUtOBvfO8shuf57BaghqFfPlYxofvL8/KUEfYiJOMMV+rV" crossorigin="anonymous"></script>
+
+</head>
+
+<body>
+    <div class="container">
+        <div id="content">
+    <h1>Octank Media POC</h1>
+
+    <br />
+
+    <button id="getfiles">Get Files</button> - <button id="reset">Reset</button>
+    <br /><br />
+    <h3>Files Results</h3>
+<div class="container" id="result"></div>
+<br />
+</div>
+
+<div class="container"><br /><br /></div>
+
+    <script>
+        $( document ).ready(function() {
+
+            $("#reset").click(function (e) {
+            $("#result").html("")
+
+        });
+
+        $("#getfiles").click(function (event) {
+
+         $.ajax({
+           url: "https://2f0g8ldm17.execute-api.us-east-1.amazonaws.com/prod",
+           type: "GET",
+           dataType: "json",
+           processData: false,
+           success: function(data){
+               $("#result").empty().append(JSON.stringify(data));
+                var parse = jQuery.parseJSON(JSON.stringify(data));
+                var table = $("<table><tr><td></td></tr>");
+                $.each(parse, function(i, item) {
+                    table.append("<tr><td style='padding:10px'><a href='" + item + "' target='_blank'>" + item.substring(72,200) + "</a></td></tr>");
+                });
+                table.append("</table>");
+                $("#result").html(table);
+           },
+           failure: function(errMsg) {
+             $("#result").empty().append("error");
+           }
+          });
+       });
+
+    });
+</script>
+
+
+
+</body>
+
+</html>
