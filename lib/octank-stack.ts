@@ -388,6 +388,7 @@ export class Octank extends cdk.Stack {
       description: 'MediaConvert Error event rule',
       eventPattern: mc_rule_error
     });
+    //Add Step Function or Lambda target to handle errors
 
 
     //*********************************//
