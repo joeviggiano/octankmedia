@@ -11,7 +11,6 @@ This is a POC project for Octank Media to show video encoding on AWS.
 * `MediaConvertQueue`       The default MediaConvert queue ARN for your account and region (line 250 of octank-stack.ts)
 
 
-The `cdk.json` file tells the CDK Toolkit how to execute your app.
 
 ## Useful commands
 
